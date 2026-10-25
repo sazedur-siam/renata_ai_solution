@@ -35,7 +35,7 @@ The brief says the sample policy must not be shared outside the assessment, so t
 |---|---|---|
 | `GEMINI_API_KEY` | yes | Your Gemini API key (server-side only, never sent to the browser) |
 | `POLICY_MD` | on Vercel | Full contents of `data/policy.md`; optional locally if the file exists |
-| `GEMINI_MODELS` (or `GEMINI_MODEL`) | no | Comma-separated models tried in order when one is overloaded or out of quota. Default: `gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest` |
+| `GEMINI_MODELS` (or `GEMINI_MODEL`) | no | Comma-separated models tried in order when one is overloaded or out of quota. Default: `gemini-3.5-flash,gemini-3-flash-preview,gemini-flash-latest,gemini-flash-lite-latest` |
 | `GEMINI_TEMPERATURE` | no | Leave unset to use the model default |
 
 ## Scripts
