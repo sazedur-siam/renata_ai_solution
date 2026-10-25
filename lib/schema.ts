@@ -52,6 +52,8 @@ export type AssistantReply = {
   citations: Citation[];
   /** Set when a guardrail changed the model's output, for transparency in evals. */
   guardrail?: string;
+  /** Which Gemini model produced the answer. */
+  model?: string;
 };
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };

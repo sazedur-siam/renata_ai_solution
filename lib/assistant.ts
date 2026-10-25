@@ -19,9 +19,9 @@ export async function answerQuestion(history: ChatMessage[]): Promise<AssistantR
 
   // One retry if the model returns malformed JSON; after that, fail closed.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const raw = await generateJson(systemPrompt, trimmed);
-    const parsed = safeParse(raw);
-    if (parsed) return enforce(policy, parsed);
+    const { text, model } = await generateJson(systemPrompt, trimmed);
+    const parsed = safeParse(text);
+    if (parsed) return { ...enforce(policy, parsed), model };
   }
   throw new ModelOutputError("Model output could not be parsed as the expected JSON.");
 }

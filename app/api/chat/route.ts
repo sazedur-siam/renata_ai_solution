@@ -5,7 +5,7 @@ import {
   MAX_QUESTION_CHARS,
   ModelOutputError,
 } from "@/lib/assistant";
-import { GeminiConfigError, GeminiRateLimitError } from "@/lib/gemini";
+import { GeminiBusyError, GeminiConfigError } from "@/lib/gemini";
 import { PolicyNotConfiguredError } from "@/lib/policy";
 import { isRateLimited } from "@/lib/rateLimit";
 
@@ -51,8 +51,8 @@ export async function POST(request: Request) {
     if (err instanceof GeminiConfigError) {
       return error(503, "The assistant is not configured (missing API key).");
     }
-    if (err instanceof GeminiRateLimitError) {
-      return error(503, "The assistant is busy right now (AI quota reached). Please try again in a minute.");
+    if (err instanceof GeminiBusyError) {
+      return error(503, "The AI service is busy right now. Please try again in a minute.");
     }
     if (err instanceof ModelOutputError) {
       return error(502, "I couldn't produce a reliable answer just now. Please try again.");

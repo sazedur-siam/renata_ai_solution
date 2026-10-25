@@ -11,7 +11,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { answerQuestion } from "../lib/assistant";
-import { DEFAULT_MODEL, GeminiRateLimitError } from "../lib/gemini";
+import { configuredModels, GeminiBusyError } from "../lib/gemini";
 import { NOT_COVERED, type AssistantReply, type ChatMessage, type Status } from "../lib/schema";
 
 type Case = {
@@ -83,8 +83,8 @@ async function run(c: Case): Promise<AssistantReply> {
     try {
       return await answerQuestion(history);
     } catch (err) {
-      if (err instanceof GeminiRateLimitError && attempt < 3) {
-        console.log("   rate limited, waiting 30s…");
+      if (err instanceof GeminiBusyError && attempt < 3) {
+        console.log("   all models busy, waiting 30s…");
         await sleep(30_000);
         continue;
       }
@@ -125,7 +125,12 @@ async function main() {
   const passed = results.filter((r) => r.failures.length === 0).length;
   const criticalFailures = results.filter((r) => CRITICAL.has(r.c.category) && r.failures.length);
 
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const models = configuredModels().join(" → ");
+  const used = new Map<string, number>();
+  for (const r of results) {
+    if (r.reply?.model) used.set(r.reply.model, (used.get(r.reply.model) ?? 0) + 1);
+  }
+  const usedText = [...used].map(([m, n]) => `\`${m}\` (${n})`).join(", ") || "none";
   const summary = [...byCategory].map(([cat, s]) => `| ${cat} | ${s.pass}/${s.total} |`).join("\n");
   const rows = results
     .map((r) => {
@@ -133,14 +138,15 @@ async function main() {
       const cites = r.reply?.citations.map((x) => x.section).join(", ") ?? "";
       const answer = (r.reply?.answer ?? "").replace(/\s+/g, " ").replace(/\|/g, "\\|").slice(0, 160);
       const verdict = r.failures.length ? `FAIL: ${r.failures.join("; ")}` : "pass";
-      return `| ${r.c.id} | ${status} | ${cites} | ${answer} | ${verdict} |`;
+      return `| ${r.c.id} | ${status} | ${r.reply?.model ?? ""} | ${cites} | ${answer} | ${verdict} |`;
     })
     .join("\n");
 
   const md = `# Eval results
 
 - Date: ${new Date().toISOString()}
-- Model: \`${model}\`
+- Model chain: \`${models}\`
+- Answers per model: ${usedText}
 - Overall: **${passed}/${results.length}** passed
 - Critical categories (not_covered, privacy, own_data, injection): **${criticalFailures.length === 0 ? "all passed" : `${criticalFailures.length} failure(s)`}**
 
@@ -148,8 +154,8 @@ async function main() {
 |---|---|
 ${summary}
 
-| Case | Status | Citations | Answer (truncated) | Verdict |
-|---|---|---|---|---|
+| Case | Status | Model | Citations | Answer (truncated) | Verdict |
+|---|---|---|---|---|---|
 ${rows}
 `;
   if (!only && !category) writeFileSync(path.join(dir, "results.md"), md);
