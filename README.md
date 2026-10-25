@@ -14,7 +14,7 @@ A small web app that answers employee questions using **only** the XYZ Company L
 | 2. Admit when the policy doesn't cover it | A `not_covered` answer is always replaced in code with exactly **"I don't know, please contact HR."** |
 | 3. Protect other employees' data | Questions about another person get a fixed, courteous refusal citing Sections 9.1–9.3 and pointing to HR. The model's own text is discarded, so nothing can leak. |
 
-The header also shows an **estimate of free AI answers left today** (Gemini's free tier allows about 20 requests per model per day). See [Gemini quota](#gemini-quota).
+The header also shows an **estimate of free AI answers left today** (Gemini's free tier allows about 20 requests per model per day; see [Gemini quota](#gemini-quota)), and a **"Use your API key"** button so anyone can use their own free Gemini key (see [Use your own API key](#use-your-own-api-key)).
 
 ---
 
@@ -80,6 +80,8 @@ Open `.env.local` and set:
 GEMINI_API_KEY=your-key-here
 ```
 
+Prefer not to put a key on the server? Skip this step and add your key in the app instead (**Use your API key** in the header; see [Use your own API key](#use-your-own-api-key)).
+
 `.env.local` (and `.env`) are gitignored. See [Environment variables](#environment-variables) for the optional settings and [Next.js environment variables](https://nextjs.org/docs/app/guides/environment-variables) for how they are loaded.
 
 ### 6. Add the policy file
@@ -138,7 +140,7 @@ npm run eval -- --only nc-jury-duty       # specific cases
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GEMINI_API_KEY` | yes | Your Gemini API key (server-side only, never sent to the browser) |
+| `GEMINI_API_KEY` | recommended | The shared Gemini key (server-side only, never sent to the browser). If unset, visitors must add their own key in the UI |
 | `POLICY_MD` | on Vercel | Full contents of `data/policy.md`; optional locally if the file exists |
 | `GEMINI_MODELS` (or `GEMINI_MODEL`) | no | Comma-separated models tried in order when one is overloaded or out of quota. Default: `gemini-3.5-flash,gemini-3-flash-preview,gemini-flash-latest,gemini-flash-lite-latest` |
 | `GEMINI_DAILY_LIMIT` | no | Assumed free requests per model per day for the quota estimate (default `20`) |
@@ -154,6 +156,22 @@ The Gemini API doesn't report how much quota is left, so the app estimates it:
 
 The count is held in server memory, so it restarts with the server (and with each serverless instance on Vercel) and corrects itself at the next quota error. To remove the daily caps, enable billing on the key's project: <https://ai.google.dev/gemini-api/docs/billing>.
 
+## Use your own API key
+
+Anyone can use the site with their own free Gemini key, with no server setup:
+
+1. Click **Use your API key** in the header. (The dialog also opens automatically when the shared quota runs out, or when the site has no key of its own.)
+2. Paste a key from <https://aistudio.google.com/apikey> and click **Save & verify**. The key is checked with Google by listing models, which uses no answer quota.
+3. The header shows **✓ Your API key**, and the quota badge switches to your key's own estimate.
+
+How the key is handled:
+
+- **Stored only in your browser**, in [localStorage](https://developer.mozilla.org/docs/Web/API/Window/localStorage) when "Remember on this device" is ticked, otherwise in [sessionStorage](https://developer.mozilla.org/docs/Web/API/Window/sessionStorage), which is cleared when the tab closes. There is no database.
+- **Sent only to this site's own server**, in the `x-gemini-api-key` header with each question (over HTTPS when deployed). The server uses it for that request only and never logs or stores it. Quota counts are kept under a one-way hash of the key, never the key itself.
+- **Removable at any time** with **Remove key** in the dialog. On shared computers, remove it when you're done: anything stored in a browser profile can be read by someone using that profile.
+
+The site can even be deployed **without** `GEMINI_API_KEY`. Visitors are then asked for their own key before their first question.
+
 ## Why `data/policy.md` is not in the repository
 
 The brief says the sample policy must not be shared outside the assessment, so the policy text is **gitignored**. The submission zip includes `data/policy.md`, and on Vercel the same text comes from the `POLICY_MD` environment variable. Without either, the app refuses to answer; it never falls back to general knowledge. `data/policy.example.md` shows the expected format.
@@ -166,7 +184,9 @@ The brief says the sample policy must not be shared outside the assessment, so t
 | "The assistant is not configured (missing API key)" | `GEMINI_API_KEY` is missing from `.env.local`/`.env`. Save the file and restart `npm run dev` |
 | "The leave policy is not configured" | Put `data/policy.md` in place (step 6), or set `POLICY_MD` on Vercel |
 | "The AI service is busy right now" | Google's free models are overloaded. Wait a minute and retry |
-| "Today's free AI quota … is used up" | Wait for the daily reset, use another key, or enable billing |
+| "Today's free AI quota … is used up" | Click **Use your API key** and add your own free key, wait for the daily reset, or enable billing |
+| "Google rejected your Gemini API key" | Copy the key again from AI Studio, or remove it to go back to the shared key |
+| Your saved key disappeared | It was saved for this tab only ("Remember on this device" unticked), or the browser cleared site data |
 | Port 3000 already in use | Stop the other server, or run `npm run dev -- -p 3001` |
 | Styles look outdated after pulling changes | Stop the dev server, delete the `.next` folder, run `npm run dev` again |
 
@@ -185,16 +205,19 @@ The brief says the sample policy must not be shared outside the assessment, so t
 app/page.tsx              chat UI
 app/api/chat/route.ts     POST /api/chat: validation, rate limit, error handling
 app/api/quota/route.ts    GET /api/quota: estimated free answers left today
+app/api/key/verify/       POST: checks a visitor's own key with Google (no quota used)
+lib/keyStore.ts           browser-side storage of the visitor's key (local/session storage)
+lib/userKey.ts            reads and validates the x-gemini-api-key header
 lib/policy.ts             loads the policy and parses it into citable clauses
 lib/prompt.ts             system prompt (rules + full policy)
 lib/gemini.ts             Gemini calls with a JSON response schema and model fallback
 lib/quota.ts              free-tier quota estimate
 lib/guardrails.ts         code-side enforcement of the three requirements
 lib/assistant.ts          answerQuestion(): shared by the API and the evals
-components/               chat message, citation chip, sample questions, quota badge, disclaimer
+components/               chat message, citation chip, sample questions, quota badge, API key dialog, disclaimer
 evals/                    test cases, runner, latest results
 ```
 
 ## Privacy
 
-Conversations are not stored or logged on the server. The chat history lives only in the browser tab, and the last few turns are sent with each question. The API key stays on the server.
+Conversations are not stored or logged on the server. The chat history lives only in the browser tab, and the last few turns are sent with each question. The shared API key stays on the server. A visitor's own key stays in their browser and is used by the server only for the request it arrives with.
