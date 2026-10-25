@@ -17,7 +17,7 @@ export function ChatMessage({ message }: { message: UiMessage }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
-        <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-accent px-4 py-2.5 text-[15px] leading-relaxed text-on-accent">
+        <p className="max-w-[85%] whitespace-pre-wrap rounded-md rounded-br-none bg-accent px-4 py-2.5 text-[15px] leading-relaxed text-on-accent">
           {message.content}
         </p>
       </div>
@@ -28,7 +28,7 @@ export function ChatMessage({ message }: { message: UiMessage }) {
   const label = STATUS_LABEL[reply.status];
   return (
     <div className="flex justify-start">
-      <div className="w-full max-w-[92%] rounded-2xl rounded-bl-sm border border-line bg-surface px-4 py-3 shadow-sm">
+      <div className="w-full max-w-[92%] rounded-md rounded-bl-none border border-line bg-surface px-4 py-3 shadow-sm">
         <span
           className={`mb-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${label.className}`}
         >

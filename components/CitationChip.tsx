@@ -22,7 +22,7 @@ export function CitationChip({ citation }: { citation: Citation }) {
         </span>
       </button>
       {open && (
-        <blockquote className="mt-2 rounded-lg border-l-4 border-accent bg-accent-soft px-3 py-2 text-sm leading-relaxed text-ink">
+        <blockquote className="mt-2 rounded-sm border-l-4 border-highlight bg-accent-soft px-3 py-2 text-sm leading-relaxed text-ink">
           “{citation.quote}”
         </blockquote>
       )}

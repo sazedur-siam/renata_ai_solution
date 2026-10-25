@@ -19,7 +19,7 @@ export function SampleQuestions({
           type="button"
           disabled={disabled}
           onClick={() => onPick(s.question)}
-          className="rounded-xl border border-line bg-surface p-3 text-left transition hover:border-accent hover:shadow-sm disabled:opacity-50"
+          className="rounded-sm border border-line border-t-[3px] border-t-highlight bg-surface p-3 text-left transition hover:border-accent hover:border-t-highlight hover:shadow-sm disabled:opacity-50"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-wide text-accent">
             {s.tag}
