@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { isExhausted, recordQuotaError, recordSuccess } from "./quota";
 import { responseJsonSchema, type ChatMessage } from "./schema";
 
 /**
@@ -21,6 +22,8 @@ const NETWORK_RETRIES = 1;
 export class GeminiConfigError extends Error {}
 /** Every model was overloaded or out of quota. */
 export class GeminiBusyError extends Error {}
+/** Every model has used its free daily quota; nothing will work until the reset. */
+export class GeminiQuotaExhaustedError extends GeminiBusyError {}
 
 let client: GoogleGenAI | null = null;
 
@@ -48,8 +51,11 @@ export async function generateJson(
 ): Promise<{ text: string; model: string }> {
   const ai = getClient();
   let lastError: unknown;
+  let allOutOfQuota = true;
 
   for (const model of configuredModels()) {
+    if (isExhausted(model)) continue; // known to be out of daily quota: don't wait on it
+    allOutOfQuota = false;
     for (let attempt = 0; attempt <= NETWORK_RETRIES; attempt++) {
       try {
         const response = await ai.models.generateContent({
@@ -70,10 +76,12 @@ export async function generateJson(
               : {}),
           },
         });
+        recordSuccess(model);
         return { text: response.text ?? "", model };
       } catch (err) {
         lastError = err;
         const { status, name } = err as { status?: number; name?: string };
+        if (status === 429) recordQuotaError(model, err);
         const timedOut = name === "AbortError" || name === "TimeoutError";
         if (status === undefined && !timedOut) {
           await sleep(500); // network blip: one quick retry on the same model
@@ -84,6 +92,10 @@ export async function generateJson(
         throw err; // auth, bad request, etc.: another model won't help
       }
     }
+  }
+  const models = configuredModels();
+  if (allOutOfQuota || models.every(isExhausted)) {
+    throw new GeminiQuotaExhaustedError("Today's free Gemini quota is used up for every model.");
   }
   throw new GeminiBusyError(
     `All Gemini models are busy or unavailable: ${(lastError as Error)?.message ?? "unknown"}`,

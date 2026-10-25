@@ -5,7 +5,13 @@ import {
   MAX_QUESTION_CHARS,
   ModelOutputError,
 } from "@/lib/assistant";
-import { GeminiBusyError, GeminiConfigError } from "@/lib/gemini";
+import {
+  configuredModels,
+  GeminiBusyError,
+  GeminiConfigError,
+  GeminiQuotaExhaustedError,
+} from "@/lib/gemini";
+import { snapshot } from "@/lib/quota";
 import { PolicyNotConfiguredError } from "@/lib/policy";
 import { isRateLimited } from "@/lib/rateLimit";
 
@@ -43,8 +49,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    return Response.json(await answerQuestion(messages));
+    const reply = await answerQuestion(messages);
+    return Response.json({ ...reply, quota: snapshot(configuredModels()) });
   } catch (err) {
+    if (err instanceof GeminiQuotaExhaustedError) {
+      const hours = snapshot(configuredModels()).resetsInHours;
+      return error(
+        503,
+        `Today's free AI quota for this demo is used up. It resets in about ${hours} hour${hours === 1 ? "" : "s"}.`,
+      );
+    }
     if (err instanceof PolicyNotConfiguredError) {
       return error(503, "The leave policy is not configured on this server, so I can't answer yet.");
     }
@@ -63,5 +77,5 @@ export async function POST(request: Request) {
 }
 
 function error(status: number, message: string) {
-  return Response.json({ error: message }, { status });
+  return Response.json({ error: message, quota: snapshot(configuredModels()) }, { status });
 }

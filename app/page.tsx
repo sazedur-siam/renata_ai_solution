@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatMessage, type UiMessage } from "@/components/ChatMessage";
 import { Disclaimer } from "@/components/Disclaimer";
+import { QuotaBadge } from "@/components/QuotaBadge";
 import { SampleQuestions } from "@/components/SampleQuestions";
+import type { QuotaSnapshot } from "@/lib/quota";
 import type { AssistantReply, ChatMessage as ApiMessage } from "@/lib/schema";
 
 const MAX_CHARS = 500;
@@ -14,11 +16,19 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quota, setQuota] = useState<QuotaSnapshot | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    fetch("/api/quota")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((q: QuotaSnapshot | null) => q && setQuota(q))
+      .catch(() => {});
+  }, []);
 
   async function ask(question: string) {
     const text = question.trim();
@@ -41,6 +51,7 @@ export default function Home() {
         body: JSON.stringify({ messages: history }),
       });
       const data = await res.json();
+      if (data.quota) setQuota(data.quota as QuotaSnapshot);
       if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
       const reply = data as AssistantReply;
       setMessages([...next, { role: "assistant", content: reply.answer, reply }]);
@@ -63,18 +74,21 @@ export default function Home() {
               XYZ Company · HR-POL-004 v2.0 (sample)
             </p>
           </div>
-          {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setMessages([]);
-                setError(null);
-              }}
-              className="rounded-sm border border-[#f8f9fa]/40 px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f8f9fa]/10"
-            >
-              New chat
-            </button>
-          )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <QuotaBadge quota={quota} />
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMessages([]);
+                  setError(null);
+                }}
+                className="rounded-sm border border-[#f8f9fa]/40 px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f8f9fa]/10"
+              >
+                New chat
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
