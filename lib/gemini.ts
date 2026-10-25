@@ -6,7 +6,12 @@ import { responseJsonSchema, type ChatMessage } from "./schema";
  * quota (429), so a single model is not reliable enough for a demo; the "-latest"
  * aliases track Google's current Flash models. Override with GEMINI_MODELS.
  */
-export const DEFAULT_MODELS = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest"];
+export const DEFAULT_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3-flash-preview",
+  "gemini-flash-latest",
+  "gemini-flash-lite-latest",
+];
 
 /** Per-call cap, so an overloaded model fails over quickly instead of hanging. */
 const TIMEOUT_MS = 20_000;
