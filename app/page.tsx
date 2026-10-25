@@ -1,38 +1,61 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { ChatMessage, type UiMessage } from "@/components/ChatMessage";
 import { Disclaimer } from "@/components/Disclaimer";
 import { QuotaBadge } from "@/components/QuotaBadge";
 import { SampleQuestions } from "@/components/SampleQuestions";
+import { maskKey, useApiKey } from "@/lib/keyStore";
 import type { QuotaSnapshot } from "@/lib/quota";
 import type { AssistantReply, ChatMessage as ApiMessage } from "@/lib/schema";
+import { API_KEY_HEADER } from "@/lib/userKey";
 
 const MAX_CHARS = 500;
 const HISTORY_SENT = 6;
 
+type ApiError = Error & { code?: string };
+
 export default function Home() {
+  const apiKey = useApiKey();
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null);
+  const [serverKey, setServerKey] = useState<boolean | null>(null);
+  /** null = closed; otherwise the dialog is open, optionally with a notice. */
+  const [keyDialog, setKeyDialog] = useState<{ notice?: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const keyHeaders: Record<string, string> = apiKey ? { [API_KEY_HEADER]: apiKey } : {};
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  // Quota is per key, so refresh it whenever the visitor adds, changes or removes one.
   useEffect(() => {
-    fetch("/api/quota")
+    fetch("/api/quota", { headers: apiKey ? { [API_KEY_HEADER]: apiKey } : {} })
       .then((res) => (res.ok ? res.json() : null))
-      .then((q: QuotaSnapshot | null) => q && setQuota(q))
+      .then((q: (QuotaSnapshot & { serverKeyConfigured: boolean }) | null) => {
+        if (!q) return;
+        setQuota(q);
+        setServerKey(q.serverKeyConfigured);
+      })
       .catch(() => {});
-  }, []);
+  }, [apiKey]);
+
+  const needsKey = serverKey === false && !apiKey;
 
   async function ask(question: string) {
     const text = question.trim();
     if (!text || loading) return;
+    if (needsKey) {
+      setInput(text);
+      setKeyDialog({ notice: "Add your Gemini API key to start asking questions." });
+      return;
+    }
 
     const next: UiMessage[] = [...messages, { role: "user", content: text }];
     setMessages(next);
@@ -47,18 +70,25 @@ export default function Home() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...keyHeaders },
         body: JSON.stringify({ messages: history }),
       });
       const data = await res.json();
       if (data.quota) setQuota(data.quota as QuotaSnapshot);
-      if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+      if (!res.ok) {
+        throw Object.assign(new Error(data.error ?? "Something went wrong."), { code: data.code });
+      }
       const reply = data as AssistantReply;
       setMessages([...next, { role: "assistant", content: reply.answer, reply }]);
     } catch (err) {
-      setError((err as Error).message);
+      const e = err as ApiError;
       setMessages(messages);
       setInput(text);
+      if (e.code === "key_required" || e.code === "key_invalid") {
+        setKeyDialog({ notice: e.message });
+      } else {
+        setError(e);
+      }
     } finally {
       setLoading(false);
     }
@@ -67,7 +97,7 @@ export default function Home() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b-[3px] border-highlight bg-brand-dark text-[#f8f9fa]">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-4">
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
             <h1 className="text-lg font-semibold tracking-tight">Leave Policy Assistant</h1>
             <p className="text-xs font-light text-[#f8f9fa]/80">
@@ -75,7 +105,15 @@ export default function Home() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <QuotaBadge quota={quota} />
+            {!needsKey && <QuotaBadge quota={quota} />}
+            <button
+              type="button"
+              onClick={() => setKeyDialog({})}
+              title={apiKey ? `Using your key ${maskKey(apiKey)}` : "Use your own Gemini API key"}
+              className="rounded-sm border border-[#f8f9fa]/40 px-3 py-1.5 text-xs font-semibold transition hover:bg-[#f8f9fa]/10"
+            >
+              {apiKey ? "✓ Your API key" : "Use your API key"}
+            </button>
             {messages.length > 0 && (
               <button
                 type="button"
@@ -103,6 +141,18 @@ export default function Home() {
                   doesn&apos;t cover something, I&apos;ll say so rather than guess.
                 </p>
               </div>
+              {needsKey && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-line border-l-4 border-l-highlight bg-surface px-4 py-3 text-sm">
+                  <span>This site has no shared AI key. Add your free Gemini API key to start.</span>
+                  <button
+                    type="button"
+                    onClick={() => setKeyDialog({})}
+                    className="rounded-sm bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent hover:opacity-90"
+                  >
+                    Add API key
+                  </button>
+                </div>
+              )}
               <SampleQuestions onPick={ask} disabled={loading} />
             </div>
           ) : (
@@ -119,9 +169,21 @@ export default function Home() {
 
         <footer className="sticky bottom-0 space-y-3 bg-background pt-2 pb-4">
           {error && (
-            <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-              {error}
-            </p>
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-sm bg-danger-soft px-3 py-2 text-sm text-danger"
+            >
+              <span>{error.message}</span>
+              {error.code === "quota_exhausted" && !apiKey && (
+                <button
+                  type="button"
+                  onClick={() => setKeyDialog({})}
+                  className="rounded-sm bg-accent px-3 py-1 text-xs font-semibold text-on-accent hover:opacity-90"
+                >
+                  Add your API key
+                </button>
+              )}
+            </div>
           )}
           <form
             onSubmit={(e) => {
@@ -164,6 +226,18 @@ export default function Home() {
           <Disclaimer />
         </footer>
       </div>
+
+      {keyDialog && (
+        <ApiKeyDialog
+          currentKey={apiKey}
+          notice={keyDialog.notice}
+          sharedKeyAvailable={serverKey !== false}
+          onClose={() => {
+            setKeyDialog(null);
+            setError(null);
+          }}
+        />
+      )}
     </div>
   );
 }

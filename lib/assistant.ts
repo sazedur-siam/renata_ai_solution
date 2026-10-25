@@ -9,9 +9,13 @@ export const MAX_HISTORY_MESSAGES = 6;
 
 /**
  * Answers the latest user message in `history`. Shared by the API route and the
- * eval runner, so the evals test exactly what employees get.
+ * eval runner, so the evals test exactly what employees get. `userApiKey` is a
+ * visitor's own Gemini key; without it the server's key is used.
  */
-export async function answerQuestion(history: ChatMessage[]): Promise<AssistantReply> {
+export async function answerQuestion(
+  history: ChatMessage[],
+  userApiKey?: string,
+): Promise<AssistantReply> {
   const policy = loadPolicy();
   const systemPrompt = buildSystemPrompt(policy);
   const trimmed = history.slice(-MAX_HISTORY_MESSAGES);
@@ -19,7 +23,7 @@ export async function answerQuestion(history: ChatMessage[]): Promise<AssistantR
 
   // One retry if the model returns malformed JSON; after that, fail closed.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const { text, model } = await generateJson(systemPrompt, trimmed);
+    const { text, model } = await generateJson(systemPrompt, trimmed, userApiKey);
     const parsed = safeParse(text);
     if (parsed) return { ...enforce(policy, parsed), model };
   }

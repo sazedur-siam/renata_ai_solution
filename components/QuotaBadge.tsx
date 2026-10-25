@@ -8,8 +8,9 @@ export function QuotaBadge({ quota }: { quota: QuotaSnapshot | null }) {
   const usedUp = quota.remaining === 0;
   const onBackup = !usedUp && quota.primaryRemaining === 0;
 
+  const whose = quota.ownKey ? "your API key's" : "the shared";
   const details =
-    `Estimate of the shared free Gemini quota for this demo (about ${quota.models[0]?.limit ?? 20} ` +
+    `Estimate of ${whose} free Gemini quota (about ${quota.models[0]?.limit ?? 20} ` +
     `answers per model per day, ${resets}). ` +
     (onBackup
       ? "The main models are used up, so a lighter backup model is answering."
@@ -29,6 +30,7 @@ export function QuotaBadge({ quota }: { quota: QuotaSnapshot | null }) {
         aria-hidden
         className={`size-1.5 rounded-full ${usedUp ? "bg-highlight" : onBackup ? "bg-amber-300" : "bg-emerald-300"}`}
       />
+      {quota.ownKey && "Your key · "}
       {usedUp
         ? `Free AI quota used up · ${resets}`
         : `≈ ${quota.remaining} AI answers left today${onBackup ? " (backup model)" : ""}`}
