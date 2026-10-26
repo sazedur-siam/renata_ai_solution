@@ -5,6 +5,7 @@ A small web app that answers employee questions using **only** the XYZ Company L
 - **Live demo:** <https://renata-ai-solution.vercel.app/>
 - **Stack:** [Next.js 16](https://nextjs.org/docs) (App Router, TypeScript) · [Google Gemini API](https://ai.google.dev/gemini-api/docs) (free tier) via [`@google/genai`](https://www.npmjs.com/package/@google/genai) · [Tailwind CSS 4](https://tailwindcss.com/docs)
 - **Full documentation:** see the `documentation/` folder in the submission (architecture, guardrails, deployment, decisions).
+- **Built with AI:** [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) helped plan, design, write and test the app; I made the decisions (see [How I used AI](#how-i-used-ai)). Google Gemini answers the questions inside the app.
 
 ## What it does
 
@@ -211,6 +212,20 @@ lib/guardrails.ts         code-side enforcement of the three requirements
 lib/assistant.ts          answerQuestion(): prompt → Gemini → guardrails
 components/               chat message, chat list and title, citation chip, sample questions, API key dialog, disclaimer
 ```
+
+## How I used AI
+
+The brief encourages building with AI tools while keeping the thinking and decisions my own. This is how I split the work.
+
+| Stage | AI tool | What the AI did | What I did |
+|---|---|---|---|
+| Planning | [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) (Anthropic) | Turned the brief into a build plan: architecture, guardrails, deliverables | Chose the approach: whole policy in the prompt (no retrieval), checks in code, Gemini free tier, English first |
+| Design | Claude Code | Proposed UI and behaviour options (chat layout, citation chips, history sidebar, info popup) and showed screenshots | Reviewed and approved each design, and asked for changes such as removing the quota badge and making the sidebar collapsible |
+| Building | Claude Code | Wrote the code in this repository and explained each change | Reviewed every change before it was committed and pushed |
+| Trade-offs | Claude Code | Laid out options with pros and cons | Made the calls, e.g. show answers only after checking rather than streaming unchecked text, keep the policy in the private repo, drop the eval suite, use fixed replies for small talk |
+| Testing | Claude Code (with a [Playwright](https://playwright.dev/) browser) | Ran type checks, lint and production builds, and tested the app in a browser on desktop, phone, light and dark mode | Checked the results and the live site |
+| Q&A and video prep | Claude Code | Drafted the walkthrough script, a cue card and answers to likely interview questions | Rehearsed and adapted them in my own words |
+| Inside the app | [Google Gemini](https://ai.google.dev/gemini-api/docs) (Flash models) | Reads the policy and drafts each answer as structured JSON | Designed the code-side guardrails that decide what employees actually see |
 
 ## Privacy
 
