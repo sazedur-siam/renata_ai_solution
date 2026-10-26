@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { ChatDrawer, ChatSidebar } from "@/components/ChatHistory";
-import { ChatMessage, type UiMessage } from "@/components/ChatMessage";
+import { ChatMessage, PendingReply, type UiMessage } from "@/components/ChatMessage";
 import { ChatTitle } from "@/components/ChatTitle";
 import { Disclaimer } from "@/components/Disclaimer";
 import { SampleQuestions } from "@/components/SampleQuestions";
@@ -15,16 +15,15 @@ import {
   setActiveChat,
   useChats,
 } from "@/lib/chatStore";
+import { readChatResponse, type ApiError } from "@/lib/chatEvents";
 import { maskKey, useApiKey } from "@/lib/keyStore";
-import type { AssistantReply, ChatMessage as ApiMessage } from "@/lib/schema";
+import type { ChatMessage as ApiMessage, Stage } from "@/lib/schema";
 import { API_KEY_HEADER } from "@/lib/userKey";
 
 const MAX_CHARS = 500;
 const HISTORY_SENT = 6;
 
 const NO_MESSAGES: UiMessage[] = [];
-
-type ApiError = Error & { code?: string };
 
 export default function Home() {
   const apiKey = useApiKey();
@@ -35,6 +34,9 @@ export default function Home() {
   /** The chat waiting for an answer, if any. */
   const [pendingId, setPendingId] = useState<string | null>(null);
   const loading = pendingId !== null;
+  const [stage, setStage] = useState<Stage>("reading");
+  /** The reply that has just arrived and is being typed out. */
+  const [typing, setTyping] = useState<{ chatId: string; index: number } | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [serverKey, setServerKey] = useState<boolean | null>(null);
@@ -47,6 +49,10 @@ export default function Home() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Keep a reply that is being typed out in view as it grows.
+  const followTyping = useCallback(() => bottomRef.current?.scrollIntoView({ block: "end" }), []);
+  const typingDone = useCallback(() => setTyping(null), []);
 
   // Ask once whether the site has a shared key; without one, visitors must add their own.
   useEffect(() => {
@@ -63,6 +69,7 @@ export default function Home() {
   function openChat(id: string | null) {
     setActiveChat(id);
     setError(null);
+    setTyping(null);
   }
 
   async function ask(question: string) {
@@ -81,6 +88,8 @@ export default function Home() {
     setInput("");
     setError(null);
     setPendingId(id);
+    setStage("reading");
+    setTyping(null);
 
     const history: ApiMessage[] = next
       .slice(-HISTORY_SENT)
@@ -92,11 +101,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json", ...keyHeaders },
         body: JSON.stringify({ messages: history }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw Object.assign(new Error(data.error ?? "Something went wrong."), { code: data.code });
-      }
-      const reply = data as AssistantReply;
+      const reply = await readChatResponse(res, setStage);
+      setTyping({ chatId: id, index: next.length });
       saveMessages(
         id,
         [...next, { role: "assistant", content: reply.answer, reply }],
@@ -202,14 +208,17 @@ export default function Home() {
                 <SampleQuestions onPick={ask} disabled={loading} />
               </div>
             ) : (
-              messages.map((m, i) => <ChatMessage key={i} message={m} />)
+              messages.map((m, i) => (
+                <ChatMessage
+                  key={i}
+                  message={m}
+                  animate={typing?.chatId === activeId && typing.index === i}
+                  onGrow={followTyping}
+                  onDone={typingDone}
+                />
+              ))
             )}
-            {pendingId !== null && pendingId === activeId && (
-              <div className="flex items-center gap-2 text-sm text-ink-soft" role="status">
-                <span className="size-2 animate-pulse rounded-full bg-accent" />
-                Checking the policy…
-              </div>
-            )}
+            {pendingId !== null && pendingId === activeId && <PendingReply stage={stage} />}
             <div ref={bottomRef} />
           </main>
 

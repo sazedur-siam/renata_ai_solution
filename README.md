@@ -4,7 +4,7 @@ A small web app that answers employee questions using **only** the XYZ Company L
 
 - **Live demo:** _<add Vercel URL>_
 - **Stack:** [Next.js 16](https://nextjs.org/docs) (App Router, TypeScript) · [Google Gemini API](https://ai.google.dev/gemini-api/docs) (free tier) via [`@google/genai`](https://www.npmjs.com/package/@google/genai) · [Tailwind CSS 4](https://tailwindcss.com/docs)
-- **Full documentation:** see the `documentation/` folder in the submission (architecture, guardrails, evals, deployment, decisions).
+- **Full documentation:** see the `documentation/` folder in the submission (architecture, guardrails, deployment, decisions).
 
 ## What it does
 
@@ -13,6 +13,10 @@ A small web app that answers employee questions using **only** the XYZ Company L
 | 1. Answer correctly and cite the policy | The full policy is in the prompt as numbered clauses. The model must return a verbatim quote for every clause it uses, and code checks each quote against the policy text before showing it. Answers without a verifiable citation are blocked. |
 | 2. Admit when the policy doesn't cover it | A `not_covered` answer is always replaced in code with exactly **"I don't know, please contact HR."** |
 | 3. Protect other employees' data | Questions about another person get a fixed, courteous refusal citing Sections 9.1–9.3 and pointing to HR. The model's own text is discarded, so nothing can leak. |
+
+Greetings, thanks, goodbyes and similar small talk ("Hello", "Thank you", "What can you do?") get a friendly reply instead of "I don't know". The model only labels the kind of message; the reply itself is fixed text in code, so small talk can never carry policy claims. A message that also asks something ("Hi, how many casual days do I get?") is answered as a normal question.
+
+While an answer is prepared, the chat shows live progress from the server ("Reading the policy…", "Writing the answer…", or "trying a backup model" when Google's model is busy). The answer is sent only after the guardrails have checked it, then typed out word by word, so employees never see unverified text.
 
 Past chats are listed in a sidebar on the left (a menu button on phones). Each chat is named after its first question and can be renamed or deleted, and chats are kept in the browser so they survive a reload (see [Privacy](#privacy)). The header has a **"Use your API key"** button so anyone can use their own free Gemini key (see [Use your own API key](#use-your-own-api-key)).
 
@@ -111,17 +115,7 @@ npm run build
 npm start          # serves the production build on http://localhost:3000
 ```
 
-### 9. Optional: run the evaluation suite
-
-```bash
-npm run eval                              # all 38 cases → writes evals/results.md
-npm run eval -- --category privacy        # one category
-npm run eval -- --only nc-jury-duty       # specific cases
-```
-
-⚠️ A full run makes 38 Gemini calls, so on the free tier it uses up most of a day's quota. Run a subset, or use a separate key, if you also want to demo the app the same day.
-
-### 10. Optional: deploy to Vercel
+### 9. Optional: deploy to Vercel
 
 1. Push the repository to GitHub and import it at <https://vercel.com/new> (guide: <https://vercel.com/docs/frameworks/full-stack/nextjs>)
 2. Add environment variables (<https://vercel.com/docs/environment-variables>):
@@ -198,7 +192,6 @@ The repository is private. If it is ever made public, the policy text becomes pu
 | `npm run dev` | Start the dev server on <http://localhost:3000> |
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run lint` | ESLint |
-| `npm run eval` | Run the evaluation set against Gemini and write `evals/results.md` |
 
 ## Project layout
 
@@ -215,9 +208,8 @@ lib/prompt.ts             system prompt (rules + full policy)
 lib/gemini.ts             Gemini calls with a JSON response schema and model fallback
 lib/quota.ts              free-tier quota estimate
 lib/guardrails.ts         code-side enforcement of the three requirements
-lib/assistant.ts          answerQuestion(): shared by the API and the evals
+lib/assistant.ts          answerQuestion(): prompt → Gemini → guardrails
 components/               chat message, chat list and title, citation chip, sample questions, API key dialog, disclaimer
-evals/                    test cases, runner, latest results
 ```
 
 ## Privacy

@@ -65,23 +65,33 @@ function isAuthError(err: unknown): boolean {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Sends the conversation to Gemini and returns the raw JSON text plus the model used. */
+/** Progress reported while generating: output started, or moving to a backup model. */
+export type GenerationEvent = "writing" | "fallback";
+
+/**
+ * Sends the conversation to Gemini and returns the raw JSON text plus the model used.
+ * The output is streamed only to report progress through `onEvent`; callers still
+ * get the complete text, so it can be checked before anyone sees it.
+ */
 export async function generateJson(
   systemPrompt: string,
   history: ChatMessage[],
   userApiKey?: string,
+  onEvent?: (event: GenerationEvent) => void,
 ): Promise<{ text: string; model: string }> {
   const ai = getClient(userApiKey);
   const scope = quotaScope(userApiKey);
   let lastError: unknown;
   let allOutOfQuota = true;
+  let failedOver = false;
 
   for (const model of configuredModels()) {
     if (isExhausted(scope, model)) continue; // known to be out of daily quota: don't wait on it
     allOutOfQuota = false;
+    if (failedOver) onEvent?.("fallback");
     for (let attempt = 0; attempt <= NETWORK_RETRIES; attempt++) {
       try {
-        const response = await ai.models.generateContent({
+        const stream = await ai.models.generateContentStream({
           model,
           contents: history.map((m) => ({
             role: m.role === "assistant" ? "model" : "user",
@@ -99,8 +109,15 @@ export async function generateJson(
               : {}),
           },
         });
+        let text = "";
+        for await (const chunk of stream) {
+          const part = chunk.text;
+          if (!part) continue;
+          if (!text) onEvent?.("writing");
+          text += part;
+        }
         recordSuccess(scope, model);
-        return { text: response.text ?? "", model };
+        return { text, model };
       } catch (err) {
         lastError = err;
         if (isAuthError(err)) throw new GeminiAuthError(Boolean(userApiKey));
@@ -112,7 +129,10 @@ export async function generateJson(
           continue;
         }
         // Overloaded, out of quota, retired or too slow: move on to the next model.
-        if (timedOut || status === 429 || status === 404 || (status ?? 0) >= 500) break;
+        if (timedOut || status === 429 || status === 404 || (status ?? 0) >= 500) {
+          failedOver = true;
+          break;
+        }
         throw err; // bad request etc.: another model won't help
       }
     }

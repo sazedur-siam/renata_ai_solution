@@ -4,6 +4,7 @@ import {
   type AssistantReply,
   type Citation,
   type ModelOutput,
+  type SmallTalkKind,
 } from "./schema";
 
 /**
@@ -13,11 +14,15 @@ import {
  * - not_covered     → always the exact required sentence, nothing else
  * - privacy_refusal → fixed courteous template; model text is discarded
  * - own_data        → exact sentence + fixed pointer to PeopleHub / own records
+ * - small_talk      → fixed friendly reply for the kind of message; model text is
+ *                     discarded, so "small talk" can never carry policy claims
  * - answered/partial→ every citation must exist and quote the policy verbatim;
  *                     with no valid citation left, fail closed to not_covered
  */
 export function enforce(policy: Policy, output: ModelOutput): AssistantReply {
   switch (output.status) {
+    case "small_talk":
+      return smallTalk(output.small_talk_kind);
     case "not_covered":
       return notCovered(
         output.answer.trim() === NOT_COVERED ? undefined : "answer replaced with required wording",
@@ -61,6 +66,37 @@ function ownData(policy: Policy): AssistantReply {
       "records may be accessed by you, your line manager and authorised HR staff " +
       "(Section 9.2).",
     citations: fixedCitations(policy, ["6.1", "9.2"]),
+  };
+}
+
+const SMALL_TALK: Record<SmallTalkKind, string> = {
+  greeting:
+    "Hello! I'm the XYZ Company Leave Policy Assistant. Ask me anything about leave, " +
+    "for example how much annual leave you earn, when you need a medical certificate, " +
+    "or how to apply. I'll point you to the policy section for every answer.",
+  how_are_you:
+    "I'm doing well, thank you for asking! How can I help you with the leave policy today?",
+  thanks: "You're welcome! If you have any other questions about leave, just ask.",
+  goodbye: "Goodbye, and take care! Come back any time you have a question about leave.",
+  acknowledgement: "Glad that helps! Is there anything else you'd like to know about leave?",
+  about_assistant:
+    "I answer questions about the XYZ Company Leave Policy (HR-POL-004, Version 2.0): " +
+    "the types of leave and how much you get, how leave is earned, carried forward and " +
+    "requested, and the related rules. Every answer cites the policy section it comes " +
+    "from.\n\nI can't see anyone's personal leave records, and for anything the policy " +
+    "doesn't cover, please contact HR at hr@xyz-company.example.",
+  complaint:
+    "I'm sorry that wasn't helpful. I can only answer from the leave policy itself, so " +
+    "try rephrasing your question and I'll do my best. For anything the policy doesn't " +
+    "cover, please contact HR at hr@xyz-company.example.",
+};
+
+function smallTalk(kind: SmallTalkKind | undefined): AssistantReply {
+  return {
+    status: "small_talk",
+    answer: SMALL_TALK[kind ?? "greeting"],
+    citations: [],
+    guardrail: kind ? undefined : "small_talk_kind missing, greeting used",
   };
 }
 
