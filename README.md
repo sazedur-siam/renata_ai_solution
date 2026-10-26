@@ -14,7 +14,7 @@ A small web app that answers employee questions using **only** the XYZ Company L
 | 2. Admit when the policy doesn't cover it | A `not_covered` answer is always replaced in code with exactly **"I don't know, please contact HR."** |
 | 3. Protect other employees' data | Questions about another person get a fixed, courteous refusal citing Sections 9.1–9.3 and pointing to HR. The model's own text is discarded, so nothing can leak. |
 
-The header also shows an **estimate of free AI answers left today** (Gemini's free tier allows about 20 requests per model per day; see [Gemini quota](#gemini-quota)), and a **"Use your API key"** button so anyone can use their own free Gemini key (see [Use your own API key](#use-your-own-api-key)).
+Past chats are listed in a sidebar on the left (a menu button on phones). Each chat is named after its first question and can be renamed or deleted, and chats are kept in the browser so they survive a reload (see [Privacy](#privacy)). The header has a **"Use your API key"** button so anyone can use their own free Gemini key (see [Use your own API key](#use-your-own-api-key)).
 
 ---
 
@@ -152,7 +152,7 @@ The Gemini API doesn't report how much quota is left, so the app estimates it:
 
 - It counts successful answers per model per day. Free-tier quotas reset at midnight Pacific time.
 - When Google returns a daily-quota error, the app learns that model's real limit and reset time, marks it as used up and skips it until the reset.
-- The header badge shows the estimate (e.g. "≈ 59 AI answers left today"). Hover over it for details. When every model is used up, users see "Today's free AI quota for this demo is used up. It resets in about N hours."
+- When every model is used up, users see "Today's free AI quota for this demo is used up. It resets in about N hours."
 
 The count is held in server memory, so it restarts with the server (and with each serverless instance on Vercel) and corrects itself at the next quota error. To remove the daily caps, enable billing on the key's project: <https://ai.google.dev/gemini-api/docs/billing>.
 
@@ -162,7 +162,7 @@ Anyone can use the site with their own free Gemini key, with no server setup:
 
 1. Click **Use your API key** in the header. (The dialog also opens automatically when the shared quota runs out, or when the site has no key of its own.)
 2. Paste a key from <https://aistudio.google.com/apikey> and click **Save & verify**. The key is checked with Google by listing models, which uses no answer quota.
-3. The header shows **✓ Your API key**, and the quota badge switches to your key's own estimate.
+3. The header shows **✓ Your API key**, and quota is then tracked for your key separately.
 
 How the key is handled:
 
@@ -207,6 +207,7 @@ app/api/chat/route.ts     POST /api/chat: validation, rate limit, error handling
 app/api/quota/route.ts    GET /api/quota: estimated free answers left today
 app/api/key/verify/       POST: checks a visitor's own key with Google (no quota used)
 lib/keyStore.ts           browser-side storage of the visitor's key (local/session storage)
+lib/chatStore.ts          browser-side storage of saved chats (localStorage)
 lib/userKey.ts            reads and validates the x-gemini-api-key header
 lib/policy.ts             loads the policy and parses it into citable clauses
 lib/prompt.ts             system prompt (rules + full policy)
@@ -214,10 +215,10 @@ lib/gemini.ts             Gemini calls with a JSON response schema and model fal
 lib/quota.ts              free-tier quota estimate
 lib/guardrails.ts         code-side enforcement of the three requirements
 lib/assistant.ts          answerQuestion(): shared by the API and the evals
-components/               chat message, citation chip, sample questions, quota badge, API key dialog, disclaimer
+components/               chat message, chat list and title, citation chip, sample questions, API key dialog, disclaimer
 evals/                    test cases, runner, latest results
 ```
 
 ## Privacy
 
-Conversations are not stored or logged on the server. The chat history lives only in the browser tab, and the last few turns are sent with each question. The shared API key stays on the server. A visitor's own key stays in their browser and is used by the server only for the request it arrives with.
+Conversations are not stored or logged on the server. Saved chats live only in the visitor's browser (localStorage, up to the 50 most recent), and the last few turns of the open chat are sent with each question. Anyone using the same browser profile can see them, so **Delete all chats** in the sidebar clears them on shared computers. The shared API key stays on the server. A visitor's own key stays in their browser and is used by the server only for the request it arrives with.
