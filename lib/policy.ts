@@ -4,8 +4,8 @@ import path from "node:path";
 /**
  * Loads the leave policy and parses it into citable clauses.
  *
- * The policy text is confidential to the assessment, so it is never committed:
- * production reads it from the POLICY_MD env var, local dev from data/policy.md.
+ * The policy lives in data/policy.md, committed and deployed with the app. The
+ * POLICY_MD env var, when set, overrides it without a code change.
  */
 
 export type Clause = {

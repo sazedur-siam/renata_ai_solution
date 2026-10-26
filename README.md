@@ -41,7 +41,7 @@ npm -v     # 10 or newer
 
 ### 2. Get the code
 
-**Option A, from the submission zip** (includes the policy file): unzip it and open a terminal in the `project` folder.
+**Option A, from the submission zip:** unzip it and open a terminal in the `project` folder.
 
 **Option B, from GitHub** (needs [Git](https://git-scm.com/downloads) and access to the repository):
 
@@ -84,14 +84,9 @@ Prefer not to put a key on the server? Skip this step and add your key in the ap
 
 `.env.local` (and `.env`) are gitignored. See [Environment variables](#environment-variables) for the optional settings and [Next.js environment variables](https://nextjs.org/docs/app/guides/environment-variables) for how they are loaded.
 
-### 6. Add the policy file
+### 6. The policy file
 
-The app needs the policy at **`data/policy.md`**.
-
-- **Submission zip:** it's already there.
-- **GitHub clone:** the file is deliberately not in the repository (see [why](#why-datapolicymd-is-not-in-the-repository)). Copy `data/policy.md` from the submission zip into the `data/` folder.
-
-Without it, the app answers "The leave policy is not configured" instead of guessing.
+The policy is already in the repository at **`data/policy.md`** (see [Where the policy lives](#where-the-policy-lives)), so there is nothing to copy. If the file is missing, the app answers "The leave policy is not configured" instead of guessing.
 
 ### 7. Start the app
 
@@ -131,7 +126,6 @@ npm run eval -- --only nc-jury-duty       # specific cases
 1. Push the repository to GitHub and import it at <https://vercel.com/new> (guide: <https://vercel.com/docs/frameworks/full-stack/nextjs>)
 2. Add environment variables (<https://vercel.com/docs/environment-variables>):
    - `GEMINI_API_KEY`: your key
-   - `POLICY_MD`: the **full contents** of `data/policy.md` (paste the whole file)
 3. Deploy, then test the three sample questions on the live URL.
 
 ---
@@ -141,7 +135,7 @@ npm run eval -- --only nc-jury-duty       # specific cases
 | Variable | Required | Purpose |
 |---|---|---|
 | `GEMINI_API_KEY` | recommended | The shared Gemini key (server-side only, never sent to the browser). If unset, visitors must add their own key in the UI |
-| `POLICY_MD` | on Vercel | Full contents of `data/policy.md`; optional locally if the file exists |
+| `POLICY_MD` | no | Overrides `data/policy.md` with the full text of a different policy, without a code change |
 | `GEMINI_MODELS` (or `GEMINI_MODEL`) | no | Comma-separated models tried in order when one is overloaded or out of quota. Default: `gemini-3.5-flash,gemini-3-flash-preview,gemini-flash-latest,gemini-flash-lite-latest` |
 | `GEMINI_DAILY_LIMIT` | no | Assumed free requests per model per day for the quota estimate (default `20`) |
 | `GEMINI_TEMPERATURE` | no | Leave unset to use the model default |
@@ -172,9 +166,16 @@ How the key is handled:
 
 The site can even be deployed **without** `GEMINI_API_KEY`. Visitors are then asked for their own key before their first question.
 
-## Why `data/policy.md` is not in the repository
+## Where the policy lives
 
-The brief says the sample policy must not be shared outside the assessment, so the policy text is **gitignored**. The submission zip includes `data/policy.md`, and on Vercel the same text comes from the `POLICY_MD` environment variable. Without either, the app refuses to answer; it never falls back to general knowledge. `data/policy.example.md` shows the expected format.
+The policy (HR-POL-004 v2.0) is stored as Markdown in **`data/policy.md`** and committed with the code, so every deployment, including the live Vercel site, answers from it with no extra setup. `next.config.ts` makes sure the file is bundled with the `/api/chat` serverless function.
+
+- **To update the policy:** edit `data/policy.md`, keeping the headings (`## 4. …`, `### 4.1 …`) and clause markers (`(a)`, `2.1`) so answers can cite them, then push. `data/policy.example.md` shows the format.
+- **To use a different policy without changing the code:** set `POLICY_MD` to its full text. It takes priority over the file.
+
+If neither is available, the app refuses to answer; it never falls back to general knowledge.
+
+The repository is private. If it is ever made public, the policy text becomes public too.
 
 ## Troubleshooting
 
@@ -182,7 +183,7 @@ The brief says the sample policy must not be shared outside the assessment, so t
 |---|---|
 | `node: command not found` or "Node.js version … is not supported" | Install Node.js 20.9+ (step 1), then open a new terminal |
 | "The assistant is not configured (missing API key)" | `GEMINI_API_KEY` is missing from `.env.local`/`.env`. Save the file and restart `npm run dev` |
-| "The leave policy is not configured" | Put `data/policy.md` in place (step 6), or set `POLICY_MD` on Vercel |
+| "The leave policy is not configured" | Make sure `data/policy.md` exists and is committed, or set `POLICY_MD` |
 | "The AI service is busy right now" | Google's free models are overloaded. Wait a minute and retry |
 | "Today's free AI quota … is used up" | Click **Use your API key** and add your own free key, wait for the daily reset, or enable billing |
 | "Google rejected your Gemini API key" | Copy the key again from AI Studio, or remove it to go back to the shared key |
