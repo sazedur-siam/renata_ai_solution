@@ -2,7 +2,7 @@
 
 A small web app that answers employee questions using **only** the XYZ Company Leave Policy (HR-POL-004 v2.0, a sample document), built for the Renata PLC AI Solutions Specialist (HR) assessment.
 
-- **Live demo:** _<add Vercel URL>_
+- **Live demo:** <https://renata-ai-solution.vercel.app/>
 - **Stack:** [Next.js 16](https://nextjs.org/docs) (App Router, TypeScript) · [Google Gemini API](https://ai.google.dev/gemini-api/docs) (free tier) via [`@google/genai`](https://www.npmjs.com/package/@google/genai) · [Tailwind CSS 4](https://tailwindcss.com/docs)
 - **Full documentation:** see the `documentation/` folder in the submission (architecture, guardrails, deployment, decisions).
 

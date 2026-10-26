@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AboutDialog } from "@/components/AboutDialog";
 import { ApiKeyDialog } from "@/components/ApiKeyDialog";
 import { ChatDrawer, ChatSidebar } from "@/components/ChatHistory";
 import { ChatMessage, PendingReply, type UiMessage } from "@/components/ChatMessage";
@@ -39,6 +40,7 @@ export default function Home() {
   const [typing, setTyping] = useState<{ chatId: string; index: number } | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [serverKey, setServerKey] = useState<boolean | null>(null);
   /** null = closed; otherwise the dialog is open, optionally with a notice. */
   const [keyDialog, setKeyDialog] = useState<{ notice?: string } | null>(null);
@@ -143,7 +145,29 @@ export default function Home() {
                 </svg>
               </button>
               <div>
-                <h1 className="text-lg font-semibold tracking-tight">Leave Policy Assistant</h1>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-lg font-semibold tracking-tight">Leave Policy Assistant</h1>
+                  <button
+                    type="button"
+                    onClick={() => setAboutOpen(true)}
+                    aria-label="What this assistant knows"
+                    title="What this assistant knows"
+                    className="rounded-full p-1 text-[#f8f9fa]/80 transition hover:bg-[#f8f9fa]/10 hover:text-[#f8f9fa]"
+                  >
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      className="size-[18px]"
+                      aria-hidden
+                    >
+                      <circle cx="10" cy="10" r="7.5" />
+                      <path d="M10 9v5" strokeLinecap="round" />
+                      <circle cx="10" cy="6.5" r="0.6" fill="currentColor" />
+                    </svg>
+                  </button>
+                </div>
                 <p className="text-xs font-light text-[#f8f9fa]/80">
                   XYZ Company · HR-POL-004 v2.0 (sample)
                 </p>
@@ -291,6 +315,8 @@ export default function Home() {
           onClose={() => setHistoryOpen(false)}
         />
       )}
+
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
 
       {keyDialog && (
         <ApiKeyDialog
